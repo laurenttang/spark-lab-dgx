@@ -5,6 +5,8 @@ on **Spark 4.1.2 + Kafka 4.3 (KRaft)** and running entirely in Docker on an **NV
 (GB10 Grace-Blackwell, aarch64). Every exercise runs from a web console on the LAN — no terminal needed —
 and a "Power of Spark" track measures scaling, file formats, and GPU acceleration on tens of millions of rows.
 
+![Spark Lab web console: exercises on the left, recent runs on the right, live cluster status at the top](docs/img/portal.png)
+
 ```mermaid
 flowchart LR
   B[Browser on LAN] -->|:8100 basic auth| C[Caddy]
@@ -46,6 +48,13 @@ flowchart LR
 | CSV | 60.4 s | 18.1 s | ×3.3 |
 
 Measured on the original course data; the synthetic data shipped here has the same schema and size.
+
+<details>
+<summary>Screenshot: the GPU job's result page (speed-ups, GPU utilization, answer check, per-query timings)</summary>
+
+![GPU job result: CPU vs GPU on Parquet and CSV, nvidia-smi peak utilization, identical answers, per-query timings](docs/img/gpu-result.png)
+
+</details>
 
 ## Engineering notes
 
