@@ -1,0 +1,31 @@
+{
+	admin off
+}
+
+:80 {
+	basic_auth {
+		{$LAB_USER} {$LAB_PASSWORD_HASH}
+	}
+
+	# Spark Master UI (+ worker / running-app UIs through its reverse proxy)
+	redir /spark /spark/
+	handle_path /spark/* {
+		reverse_proxy spark-master:8080
+	}
+
+	# Spark History Server (finished jobs: DAG, stages, timings)
+	redir /history /history/
+	handle_path /history/* {
+		reverse_proxy spark-history:18080
+	}
+
+	# JupyterLab (base_url=/jupyter, websockets pass through)
+	handle /jupyter* {
+		reverse_proxy jupyter:8888
+	}
+
+	# Demo portal
+	handle {
+		reverse_proxy portal:8000
+	}
+}

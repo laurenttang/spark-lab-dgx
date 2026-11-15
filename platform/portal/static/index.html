@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spark Lab</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1d2330;--muted:#667085;--line:#e4e7ec;--accent:#e25a1c;--accent-ink:#fff;
+--ok:#12805c;--bad:#c4320a;--run:#1f6feb;--code:#0f172a;--code-ink:#e2e8f0;
+--s1:#e25a1c;--s2:#2f6fdb;--s3:#16a085;--s4:#8e44ad;--s5:#d4a017;--s6:#c0392b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1218;--panel:#171b23;--ink:#e6e9ef;--muted:#98a2b3;--line:#2a303b;--code:#0b0e13}}
+:root[data-theme="dark"]{--bg:#0f1218;--panel:#171b23;--ink:#e6e9ef;--muted:#98a2b3;--line:#2a303b;--code:#0b0e13}
+*{box-sizing:border-box}a{color:var(--accent)}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;font-size:19px;letter-spacing:.3px}.logo b{color:var(--accent)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;flex:1}.chip{background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:13px;color:var(--muted)}
+.chip strong{color:var(--ink)}.links a{margin-left:10px;color:var(--ink);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:5px 10px;border-radius:8px;background:var(--bg)}
+.links a:hover{border-color:var(--accent)}
+main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;padding:16px;max-width:1600px;margin:auto}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.section h2{font-size:15px;margin:18px 0 2px}.section p{margin:0 0 8px;color:var(--muted);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.card:hover,.card.sel{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
+.card h3{margin:0;font-size:15px}.card div{color:var(--muted);font-size:13px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.panel h1{margin:0 0 4px;font-size:21px}.muted{color:var(--muted)}
+form.params{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:12px 0}
+label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+input,select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:inherit;min-width:90px}
+input[type=text]{min-width:260px}
+button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:8px 18px;font:inherit;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
+button:disabled{opacity:.5;cursor:wait}
+.status{display:inline-flex;align-items:center;gap:6px;font-weight:700}.dot{width:9px;height:9px;border-radius:50%}
+.queued .dot,.cancelled .dot{background:var(--muted)}.running .dot{background:var(--run);animation:p 1s infinite}.done .dot{background:var(--ok)}.failed .dot{background:var(--bad)}
+@keyframes p{50%{opacity:.3}}
+.log{background:var(--code);color:var(--code-ink);border-radius:8px;padding:10px;font:12.5px/1.5 ui-monospace,Menlo,monospace;max-height:220px;overflow:auto;white-space:pre-wrap;margin:10px 0}
+pre.src{background:var(--code);color:var(--code-ink);border-radius:8px;padding:12px;font:12.5px/1.5 ui-monospace,Menlo,monospace;overflow:auto;max-height:520px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}
+.metric{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg)}.metric .v{font-size:21px;font-weight:800;word-break:break-word}.metric .l{font-size:12.5px;color:var(--muted)}
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}@media (max-width:600px){.charts{grid-template-columns:1fr}}
+.chartbox{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel);min-width:0}.chartbox h4{margin:0 0 6px;font-size:14px}
+.chartbox .cv{position:relative;height:300px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel)}.tbl{max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin:8px 0 16px}
+.tbl h4{margin:0;padding:8px 10px;font-size:14px;border-bottom:1px solid var(--line);position:sticky;left:0}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.steps span{font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+.notes{border-left:3px solid var(--accent);padding:4px 10px;margin:10px 0;color:var(--muted);font-size:13.5px}
+#map{height:420px;border-radius:10px;border:1px solid var(--line);margin:8px 0 16px}
+.hist{font-size:13px}.hist div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:5px 0;cursor:pointer}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+input[type=range]{min-width:160px;padding:0}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><b>⚡</b> Spark Lab</div>
+  <div class="chips" id="chips"><span class="chip">連線中…</span></div>
+  <div class="links">
+    <a href="/spark/" target="_blank">Spark UI</a>
+    <a href="/history/" target="_blank">History</a>
+    <a href="/jupyter/lab" target="_blank">Jupyter</a>
+  </div>
+</header>
+<main>
+  <aside id="nav"></aside>
+  <section class="panel" id="detail">
+    <h1>歡迎回到 Spark 課程</h1>
+    <p class="muted">左邊挑一個範例，按「執行」就會送到 Spark 叢集（1 個 master + 2 個 worker）運算。
+      執行時可以開 <a href="/spark/" target="_blank">Spark UI</a> 看工作被切成哪些 stage / task、分配到哪個 worker。</p>
+    <h3>最近執行</h3><div class="hist" id="hist"></div>
+  </section>
+</main>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let CAT=null, CUR=null, POLL=null, CHARTS=[], MAP=null, TOTAL_CORES=16;
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PALETTE=()=>["--s1","--s2","--s3","--s4","--s5","--s6"].map(css);
+
+async function j(u,o){const r=await fetch(u,o);if(!r.ok)throw new Error(r.status);return r.json()}
+
+async function loadCluster(){
+  try{const c=await j("/api/cluster");
+    if(c.error){$("#chips").innerHTML=`<span class="chip">叢集未就緒</span>`;return}
+    TOTAL_CORES=c.cores||16;
+    const w=c.workers.filter(x=>x.state==="ALIVE").length;
+    $("#chips").innerHTML=`<span class="chip">Workers <strong>${w}</strong></span>
+      <span class="chip">Cores <strong>${c.coresused}/${c.cores}</strong></span>
+      <span class="chip">Memory <strong>${(c.memoryused_mb/1024).toFixed(0)}/${(c.memory_mb/1024).toFixed(0)} GB</strong></span>
+      ${c.activeapps.map(a=>`<span class="chip">▶ <strong>${esc(a.name)}</strong></span>`).join("")}`;
+  }catch(e){$("#chips").innerHTML=`<span class="chip">叢集離線</span>`}
+}
+
+async function loadCatalog(){
+  CAT=await j("/api/catalog");
+  $("#nav").innerHTML=CAT.sections.map(s=>{
+    const jobs=Object.entries(CAT.jobs).filter(([,v])=>v.section===s.id);
+    return `<div class="section"><h2>${esc(s.title)}</h2><p>${esc(s.desc)}</p>
+      ${jobs.length?jobs.map(([id,v])=>`<div class="card" data-id="${id}"><h3>${esc(v.title)}</h3><div>${esc(v.desc)}</div></div>`).join("")
+        :`<div class="card" style="cursor:default;opacity:.6"><div>建置中…</div></div>`}</div>`}).join("");
+  const STREAM_DESC={ec_logs:"Producer 每秒送出 N 筆模擬電商事件到 Kafka（logs_stream）；Spark Structured Streaming 以 60 秒視窗、每 5 秒滑動，即時統計每位訪客的瀏覽 / 加購物車 / 購買次數，結果再寫回 Kafka（user_activity_stream）。",
+    tweets:"重播 Sentiment140 推文到 Kafka（tweets_stream）；Spark 用 AFINN 替每則推文打分數，以 5 分鐘視窗、每 20 秒滑動，即時排出最正面與最負面的使用者。"};
+  const sec=[...document.querySelectorAll(".section")].find(s=>s.querySelector("h2").textContent===CAT.sections.find(x=>x.id==="streaming").title);
+  if(sec){sec.querySelectorAll(".card").forEach(c=>c.remove());
+    Object.entries(CAT.streams).forEach(([k,v])=>{const c=document.createElement("div");c.className="card";c.dataset.id="__stream_"+k;
+      c.innerHTML=`<h3>${esc(v.title)}</h3><div>${esc(STREAM_DESC[k])}</div>`;c.onclick=()=>showStream(k,v.title,STREAM_DESC[k]);sec.appendChild(c)})}
+  document.querySelectorAll(".card[data-id]").forEach(c=>{if(CAT.jobs[c.dataset.id])c.onclick=()=>showJob(c.dataset.id)});
+  const last=[...document.querySelectorAll('.card[data-id]')].filter(c=>CAT.jobs[c.dataset.id]?.section==="power").pop();
+  if(last){const sc=document.createElement("div");sc.className="card";sc.dataset.id="__scaling";
+    sc.innerHTML=`<h3>④ 擴展性測試：1 → ${TOTAL_CORES} 核</h3><div>同一份資料分別用 1、2、4、8、${TOTAL_CORES} 核跑，畫出加速曲線，再和 pandas 對照。</div>`;
+    sc.onclick=showScaling;last.after(sc)}
+}
+
+function showStream(name,title,desc){
+  CUR="__stream_"+name;clearInterval(POLL);CHARTS.forEach(c=>c.destroy());CHARTS=[];
+  document.querySelectorAll(".card").forEach(c=>c.classList.toggle("sel",c.dataset.id===CUR));
+  $("#detail").innerHTML=`<h1>${esc(title)}</h1><p class="muted">${esc(desc)}</p>
+   <form class="params" id="stf"><label>Producer 每秒筆數<input name="rate" type="number" value="${name==="tweets"?20:50}"></label>
+   <button id="st1">▶ 開始串流</button><button type="button" class="ghost" id="st0">■ 停止</button>
+   <button type="button" class="ghost" id="src">看程式碼</button></form><div id="srcbox"></div><div id="sout"></div>`;
+  $("#src").onclick=async()=>{const b=$("#srcbox");if(b.innerHTML){b.innerHTML="";return}
+    b.innerHTML=`<pre class="src">${esc(await (await fetch(`/api/source/${name}`)).text())}</pre>`};
+  $("#stf").onsubmit=async e=>{e.preventDefault();$("#st1").disabled=true;$("#sout").innerHTML=`<p class="status running"><span class="dot"></span> 啟動 producer 與 Spark streaming…（約 20–30 秒後開始出現結果）</p>`;
+    await j(`/api/stream/${name}/start`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rate:+new FormData(e.target).get("rate")})});$("#st1").disabled=false};
+  $("#st0").onclick=async()=>{await j(`/api/stream/${name}/stop`,{method:"POST"});};
+  const hist=[];let lastBatch=-1,chart=null;
+  const tick=async()=>{const s=await j(`/api/stream/${name}`);if(CUR!=="__stream_"+name)return;const out=$("#sout");if(!out)return;
+    let h=`<div class="row"><span class="status ${s.running?"running":"queued"}"><span class="dot"></span>${s.running?"串流中":"已停止"}</span>
+      ${s.running?`<span class="muted">${s.uptime}s · ${s.rate} 筆/秒</span><a href="/spark/" target="_blank">→ Spark UI（Structured Streaming 分頁）</a>`:""}</div>`;
+    if(s.log_tail)h+=`<div class="log">${esc(s.log_tail.join("\n"))}</div>`;
+    if(s.producer)h+=`<div class="metrics"><div class="metric"><div class="v">${s.producer.sent.toLocaleString()}</div><div class="l">Producer 已送出</div></div>`;
+    const sn=s.snapshot;
+    if(sn&&name==="ec_logs"){const t=sn.totals;if(sn.batch!==lastBatch){lastBatch=sn.batch;hist.push({t:sn.window_end.slice(11,19),...t});if(hist.length>60)hist.shift()}
+      h+=`<div class="metric"><div class="v">${sn.visitors}</div><div class="l">60 秒內活躍訪客</div></div>
+        <div class="metric"><div class="v">${t.number_of_page_views}</div><div class="l">瀏覽</div></div>
+        <div class="metric"><div class="v">${t.number_of_add_to_carts}</div><div class="l">加購物車</div></div>
+        <div class="metric"><div class="v">${t.number_of_sales}</div><div class="l">購買</div></div>
+        <div class="metric"><div class="v">${sn.batch}</div><div class="l">micro-batch 編號</div></div></div>
+        <div class="chartbox"><h4>每個 60 秒視窗的事件數（每 5 秒更新）</h4><div class="cv"><canvas id="lc"></canvas></div></div>
+        <div class="tbl"><h4>最活躍訪客（視窗結束於 ${esc(sn.window_end.slice(11,19))}）→ 也寫入 Kafka user_activity_stream</h4><table><tr><th>visitor</th><th>sales</th><th>add_to_cart</th><th>page_view</th><th>events</th></tr>
+        ${sn.top.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+    }else if(sn&&name==="tweets"){const u=sn.users;
+      h+=`<div class="metric"><div class="v">${u.length}</div><div class="l">5 分鐘內發文使用者</div></div><div class="metric"><div class="v">${sn.batch}</div><div class="l">micro-batch 編號</div></div></div>
+        <div class="chartbox"><h4>使用者情緒總分（5 分鐘視窗，每 20 秒滑動）</h4><div class="cv" style="height:${Math.max(300,u.length*20)}px"><canvas id="lc"></canvas></div></div>
+        <div class="tbl"><h4>最新一則推文</h4><table><tr><th>user</th><th>score</th><th>tweets</th><th>最新推文</th></tr>
+        ${u.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+    }else if(s.producer)h+=`</div><p class="muted">等待第一個 micro-batch…</p>`;
+    out.innerHTML=h;
+    CHARTS.forEach(c=>c.destroy());CHARTS=[];const pal=PALETTE(),ink=css("--muted"),grid=css("--line");
+    const opt=(ix)=>({maintainAspectRatio:false,animation:false,indexAxis:ix,plugins:{legend:{labels:{color:ink}}},scales:{x:{ticks:{color:ink},grid:{color:grid}},y:{ticks:{color:ink,autoSkip:false},grid:{color:grid}}}});
+    if(sn&&name==="ec_logs"&&$("#lc"))CHARTS.push(new Chart($("#lc"),{type:"line",data:{labels:hist.map(x=>x.t),datasets:[
+      ["number_of_page_views","瀏覽"],["number_of_add_to_carts","加購物車"],["number_of_sales","購買"]].map(([k,l],i)=>({label:l,data:hist.map(x=>x[k]),borderColor:pal[i],backgroundColor:pal[i],pointRadius:0,tension:.25}))},options:opt("x")}));
+    if(sn&&name==="tweets"&&$("#lc"))CHARTS.push(new Chart($("#lc"),{type:"bar",data:{labels:sn.users.map(r=>r[0]),datasets:[{label:"score",data:sn.users.map(r=>r[1]),
+      backgroundColor:sn.users.map(r=>r[1]>=0?pal[2]:pal[0])}]},options:opt("y")}));
+  };
+  tick();POLL=setInterval(tick,2500);
+}
+
+async function datasetsHtml(){
+  const b=await j("/api/bigdata");
+  return `<div class="tbl" style="max-height:none"><h4>已產生的放大資料（磁碟剩餘 ${b.disk_free_gb} GB）</h4><table>
+    <tr><th>倍數</th><th>CSV</th><th>Parquet</th></tr>
+    ${b.datasets.map(d=>`<tr><td>×${d.factor}</td>${[["gb","csv"],["parquet_gb","parquet"]].map(([k,fmt])=>d[k]==null
+        ?`<td class="muted">—</td>`:`<td>${d[k]} GB <button class="ghost" onclick="delData(${d.factor},'${fmt}')">刪除</button></td>`).join("")}</tr>`).join("")
+      ||`<tr><td colspan=3 class="muted">尚未產生，先執行「① 資料放大」。</td></tr>`}</table></div>`;
+}
+async function delData(f,fmt){if(!confirm(`刪除 ×${f} 的 ${fmt.toUpperCase()} 資料？`))return;await fetch(`/api/bigdata/${f}?fmt=${fmt}`,{method:"DELETE"});
+  const box=$("#dsbox");if(box)box.innerHTML=await datasetsHtml()}
+
+async function waitRun(id){for(;;){const r=await j(`/api/runs/${id}`);if(["done","failed","cancelled"].includes(r.status))return r;await new Promise(s=>setTimeout(s,2000))}}
+
+async function showScaling(){
+  CUR="__scaling";clearInterval(POLL);
+  document.querySelectorAll(".card").forEach(c=>c.classList.toggle("sel",c.dataset.id==="__scaling"));
+  const steps=[1,2,4,8,TOTAL_CORES].filter((v,i,a)=>a.indexOf(v)===i);
+  $("#detail").innerHTML=`<h1>擴展性測試</h1>
+   <p class="muted">同一個分析（全量掃描 + 彙總）依序用 ${steps.join("、")} 核心執行。理想狀況是核心加倍、時間減半；
+   實際會受磁碟 I/O、shuffle 與啟動成本影響。可以選 CSV、Parquet 或兩者比較，最後用 pandas（單核、全部載入記憶體）做對照。</p>
+   <div class="notes">這台 DGX Spark 的 20 核是 10 個效能核（Cortex-X925）+ 10 個節能核（A725），主機上也還有其他服務在用 CPU，
+   所以超過 8 核後加速會趨緩，這是正常的。CSV 每一行都要切字串、轉型別；Parquet 是欄式格式，只讀用到的 5/15 欄，
+   型別也已經存好。實測 ×30：CSV 1 核 239 s → 16 核 56 s；Parquet 1 核 96 s → 8 核 34 s（檔案從 6.7 GB 縮成 1.8 GB）；
+   Parquet 在 8 核後就不再變快，因為剩下的時間主要是排程和 JVM 暖機這類固定成本。選 Parquet 前要先執行「①-b CSV → Parquet」。</div>
+   <div id="dsbox"></div>
+   <form class="params" id="sf"><label>資料倍數<input name="factor" type="number" value="30"></label>
+   <label>檔案格式<select name="fmt"><option value="both">CSV vs Parquet</option><option value="csv">只跑 CSV</option><option value="parquet">只跑 Parquet</option></select></label>
+   <label><span><input type="checkbox" name="pandas" checked style="min-width:0"> 加跑 pandas 對照</span></label>
+   <button id="go">▶ 開始測試</button></form>
+   <div class="charts"><div class="chartbox"><h4>執行時間 vs 核心數</h4><div class="cv"><canvas id="sc1"></canvas></div></div>
+   <div class="chartbox"><h4>加速倍數（相對 CSV 1 核）</h4><div class="cv"><canvas id="sc2"></canvas></div></div></div>
+   <div id="sout"></div>`;
+  $("#dsbox").innerHTML=await datasetsHtml();
+  const post=(job,body)=>j(`/api/run/${job}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  $("#sf").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),factor=+f.get("factor");
+    const fmts=f.get("fmt")==="both"?["csv","parquet"]:[f.get("fmt")];$("#go").disabled=true;
+    const res=[],pandas={};const out=$("#sout");
+    const fail=r=>{out.innerHTML=tbl()+`<div class="log">${esc((r.log_tail||[]).join("\n"))}</div>`;$("#go").disabled=false};
+    for(const fmt of fmts)for(const c of steps){
+      out.innerHTML=`<p class="status running"><span class="dot"></span> ${fmt.toUpperCase()} · ${c} 核執行中…（可開 <a href="/spark/" target="_blank">Spark UI</a> 觀看）</p>`+tbl();
+      const r=await waitRun((await post("big_query",{cores:c,params:{factor,format:fmt}})).id);
+      if(r.status!=="done")return fail(r);
+      const bn=r.result.bench;res.push({fmt,cores:c,sec:bn.seconds,rows:bn.rows,gb:bn.gb,read_gb:bn.read_gb??bn.gb});draw();
+    }
+    if(f.get("pandas"))for(const fmt of fmts){
+      out.innerHTML=`<p class="status running"><span class="dot"></span> pandas（${fmt.toUpperCase()}）對照執行中…</p>`+tbl();
+      const r=await waitRun((await post("pandas",{params:{factor,format:fmt}})).id);
+      if(r.status==="done")pandas[fmt]=r.result;}
+    out.innerHTML=tbl();$("#go").disabled=false;loadHist();
+    function base(){return (res.find(r=>r.fmt==="csv"&&r.cores===1)||res[0]).sec}
+    function tbl(){if(!res.length)return"";const b=base();
+      const size=fmts.map(fm=>{const r=res.find(x=>x.fmt===fm);return r?`${fm.toUpperCase()} ${r.gb} GB${fm==="parquet"?`（實際讀 ${r.read_gb} GB）`:""}`:""}).filter(Boolean).join("、");
+      let h=`<div class="tbl" style="max-height:none"><h4>結果（${res[0].rows.toLocaleString()} 筆；${size}）</h4><table><tr><th>引擎</th><th>格式</th><th>核心</th><th>耗時</th><th>加速</th><th>速度</th></tr>`+
+        res.map(r=>`<tr><td>Spark</td><td>${r.fmt.toUpperCase()}</td><td>${r.cores}</td><td>${r.sec.toFixed(1)} s</td><td>×${(b/r.sec).toFixed(1)}</td><td>${(r.rows/r.sec/1e6).toFixed(2)} M 筆/秒</td></tr>`).join("");
+      for(const [fm,pd] of Object.entries(pandas)){const p=pd.bench;
+        h+=`<tr><td>pandas</td><td>${fm.toUpperCase()}</td><td>1</td><td>${p.est_seconds.toFixed(0)} s${(p.scale??p.total_gb/p.gb)>1.01?"（推估）":""}</td><td>×${(b/p.est_seconds).toFixed(1)}</td><td>${(p.rows/p.seconds/1e6).toFixed(2)} M 筆/秒</td></tr>`}
+      h+=`</table></div>`;
+      for(const [fm,pd] of Object.entries(pandas))h+=`<div class="notes">pandas（${fm.toUpperCase()}）峰值記憶體 ${pd.bench.peak_gb} GB（實際載入 ${pd.bench.rows.toLocaleString()} 筆時）。${(pd.notes||[]).join(" ")}</div>`;
+      const c1=res.find(r=>r.fmt==="csv"&&r.cores===TOTAL_CORES),p1=res.find(r=>r.fmt==="parquet"&&r.cores===TOTAL_CORES);
+      if(c1&&p1)h+=`<div class="notes">同樣 ${TOTAL_CORES} 核：CSV ${c1.sec.toFixed(1)} s → Parquet ${p1.sec.toFixed(1)} s，快了 ×${(c1.sec/p1.sec).toFixed(1)}；檔案從 ${c1.gb} GB 變成 ${p1.gb} GB，這次查詢實際只讀 ${p1.read_gb} GB。</div>`;
+      return h}
+    function draw(){CHARTS.forEach(c=>c.destroy());CHARTS=[];const pal=PALETTE(),ink=css("--muted"),grid=css("--line"),b=base();
+      const opt={maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{labels:{color:ink}}},scales:{x:{title:{display:true,text:"cores",color:ink},ticks:{color:ink},grid:{color:grid}},y:{ticks:{color:ink},grid:{color:grid},beginAtZero:true}}};
+      const by=fm=>steps.map(c=>res.find(r=>r.fmt===fm&&r.cores===c)?.sec??null);
+      CHARTS.push(new Chart($("#sc1"),{type:"bar",data:{labels:steps,datasets:fmts.map((fm,i)=>({label:`${fm.toUpperCase()}（秒）`,data:by(fm),backgroundColor:pal[i]}))},options:opt}));
+      CHARTS.push(new Chart($("#sc2"),{type:"line",data:{labels:steps,datasets:[
+        ...fmts.map((fm,i)=>({label:`${fm.toUpperCase()} 實際加速`,data:by(fm).map(v=>v&&b/v),borderColor:pal[i],backgroundColor:pal[i],tension:.2,spanGaps:true})),
+        {label:"理想（線性）",data:steps,borderColor:pal[2],borderDash:[6,4],pointRadius:0}]},options:opt}));}
+  };
+}
+
+function showJob(id,run){
+  CUR=id; clearInterval(POLL); history.replaceState(null,"",run?`#job=${id}&run=${run}`:`#job=${id}`);
+  document.querySelectorAll(".card").forEach(c=>c.classList.toggle("sel",c.dataset.id===id));
+  const v=CAT.jobs[id];
+  $("#detail").innerHTML=`<h1>${esc(v.title)}</h1><p class="muted">${esc(v.desc)}</p>
+   <form class="params" id="pf">${(v.params||[]).map(p=>`<label>${esc(p.label)}${p.type==="select"
+      ?`<select name="${p.name}">${p.choices.map(c=>`<option ${c===p.default?"selected":""}>${esc(c)}</option>`).join("")}</select>`
+      :`<input name="${p.name}" type="${p.type}" value="${esc(p.default)}">`}</label>`).join("")}
+    <label>使用核心數：<b id="cv">${TOTAL_CORES}</b><input type="range" name="cores" min="1" max="${TOTAL_CORES}" value="${TOTAL_CORES}" oninput="cv.textContent=this.value"></label>
+    <button id="go">▶ 執行</button><button type="button" class="ghost" id="src">看程式碼</button></form>
+   <div id="srcbox"></div>${v.section==="power"?`<div id="dsbox"></div>`:""}<div id="out"></div>`;
+  if(v.section==="power")datasetsHtml().then(h=>{const b=$("#dsbox");if(b)b.innerHTML=h});
+  if(v.engine==="python")$("#pf label:has(input[name=cores])").style.display="none";
+  $("#pf").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),params={};
+    for(const p of v.params||[])params[p.name]=f.get(p.name);
+    $("#go").disabled=true;
+    const r=await j(`/api/run/${id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({params,cores:+f.get("cores")})});
+    history.replaceState(null,"",`#job=${id}&run=${r.id}`);follow(r.id)};
+  $("#src").onclick=async()=>{const b=$("#srcbox");if(b.innerHTML){b.innerHTML="";return}
+    b.innerHTML=`<pre class="src">${esc(await (await fetch(`/api/source/${id}`)).text())}</pre>`};
+  if(run)follow(run);
+}
+
+function follow(rid){
+  clearInterval(POLL);
+  const tick=async()=>{const r=await j(`/api/runs/${rid}`);render(r);
+    if(["done","failed","cancelled"].includes(r.status)){clearInterval(POLL);const g=$("#go");if(g)g.disabled=false;loadHist()}};
+  tick();POLL=setInterval(tick,1500);
+}
+
+function render(r){
+  const t=r.status==="running"?`${r.elapsed}s`:r.seconds?`${r.seconds}s`:"";
+  const label={queued:"排隊中",running:"執行中",done:"完成",failed:"失敗",cancelled:"已取消"}[r.status];
+  let h=`<div class="row"><span class="status ${r.status}"><span class="dot"></span>${label}</span><span class="muted">${t} · ${r.cores} cores · run ${r.id}</span>
+    ${r.status==="running"?`<a href="/spark/" target="_blank">→ 在 Spark UI 看即時執行</a>`:""}
+    ${r.status==="running"||r.status==="queued"?`<button class="ghost" onclick="fetch('/api/runs/${r.id}/cancel',{method:'POST'})">取消</button>`:""}
+    ${r.status==="done"?`<a href="/history/" target="_blank">→ History Server 看 DAG</a>`:""}</div>`;
+  if(r.status!=="done")h+=`<div class="log">${esc((r.log_tail||r.log||[]).join("\n"))||"等待 Spark 啟動…"}</div>`;
+  const res=r.result;
+  if(res){
+    h+=`<div class="steps">${(res.steps||[]).map(s=>`<span>${esc(s.step)} <b>${s.seconds}s</b></span>`).join("")}<span>Spark 總計 <b>${res.total_seconds}s</b></span></div>`;
+    h+=`<div class="metrics">${res.metrics.map(m=>`<div class="metric"><div class="v">${esc(typeof m.value==="number"?m.value.toLocaleString():m.value)}${esc(m.unit)}</div><div class="l">${esc(m.label)}</div></div>`).join("")}</div>`;
+    h+=(res.notes||[]).map(n=>`<div class="notes">${esc(n)}</div>`).join("");
+    if(res.map_points)h+=`<h4>地圖</h4><div id="map"></div>`;
+    h+=`<div class="charts">${res.charts.map((c,i)=>`<div class="chartbox"><h4>${esc(c.title)}</h4><div class="cv" style="height:${c.kind==="hbar"?Math.max(260,c.labels.length*24):300}px"><canvas id="c${i}"></canvas></div></div>`).join("")}</div>`;
+    h+=res.tables.map(t=>`<div class="tbl"><h4>${esc(t.name)}</h4><table><tr>${t.columns.map(c=>`<th>${esc(c)}</th>`).join("")}</tr>
+      ${t.rows.map(row=>`<tr>${row.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table></div>`).join("");
+  }
+  const out=$("#out"); if(!out)return;
+  out.innerHTML=h;
+  if(res){drawCharts(res);if(res.map_points)drawMap(res.map_points)}
+}
+
+function drawCharts(res){
+  CHARTS.forEach(c=>c.destroy());CHARTS=[];
+  const pal=PALETTE(),ink=css("--muted"),grid=css("--line");
+  res.charts.forEach((c,i)=>{
+    const names=Object.keys(c.series),pie=c.kind==="pie";
+    const ds=names.map((n,k)=>({label:n,data:c.series[n],
+      backgroundColor:pie?pal:pal[k%pal.length],borderColor:pal[k%pal.length],borderWidth:c.kind==="line"?2:0,
+      pointRadius:c.kind==="line"?2:0,tension:.25}));
+    CHARTS.push(new Chart(document.getElementById("c"+i),{type:pie?"doughnut":c.kind==="hbar"?"bar":c.kind,
+      data:{labels:c.labels,datasets:ds},
+      options:{maintainAspectRatio:false,indexAxis:c.kind==="hbar"?"y":"x",animation:{duration:300},
+        plugins:{legend:{display:names.length>1||pie,labels:{color:ink}}},
+        scales:pie?{}:{x:{ticks:{color:ink},grid:{color:grid}},y:{ticks:{color:ink,autoSkip:c.kind!=="hbar"},grid:{color:grid}}}}}));
+  });
+}
+
+function drawMap(pts){
+  if(MAP){MAP.remove();MAP=null}
+  MAP=L.map("map").setView([23.8,121],7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(MAP);
+  const pal=PALETTE(),groups=[...new Set(pts.map(p=>p.group))],max=Math.max(...pts.map(p=>p.size));
+  pts.forEach(p=>L.circleMarker([p.lat,p.lon],{radius:4+14*Math.sqrt(p.size/max),color:pal[groups.indexOf(p.group)%pal.length],fillOpacity:.55,weight:1})
+    .bindTooltip(`${esc(p.label)} · ${p.size}`).addTo(MAP));
+  const tw=pts.filter(p=>p.lat>21.5&&p.lat<26.5&&p.lon>118&&p.lon<122.5);   // most points are in Taiwan; a few devices travel abroad
+  const fit=tw.length>=pts.length*0.5?tw:pts;
+  MAP.fitBounds(fit.map(p=>[p.lat,p.lon]),{padding:[20,20]});
+}
+
+async function loadHist(){
+  const runs=await j("/api/runs"),el=$("#hist");if(!el)return;
+  el.innerHTML=runs.length?runs.map(r=>`<div data-job="${r.job}" data-run="${r.id}"><span>${esc(r.title)}</span><span class="status ${r.status}"><span class="dot"></span>${r.seconds?r.seconds+"s":r.status}</span></div>`).join("")
+    :`<p class="muted">還沒有執行紀錄。</p>`;
+  el.querySelectorAll("div[data-run]").forEach(d=>d.onclick=()=>showJob(d.dataset.job,d.dataset.run));
+}
+
+loadCatalog().then(()=>{loadHist();const h=new URLSearchParams(location.hash.slice(1));
+  if(h.get("job")&&CAT.jobs[h.get("job")])showJob(h.get("job"),h.get("run")||undefined)});loadCluster();setInterval(loadCluster,3000);
+</script>
+</body>
+</html>
