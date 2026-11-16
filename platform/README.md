@@ -160,6 +160,9 @@ kafka（KRaft 單節點，不需要 ZooKeeper）
 | Kafka 訊息 | 24 小時或每個 partition 1 GB（segment 每小時切換一次，保留期限才會真的生效） | `KAFKA_LOG_*` |
 | streaming checkpoint | stream 啟動、停止時刪除（每次都從 latest 開始，舊的沒有用） | `portal/app.py` 的 `stream_stop` |
 | 執行紀錄（results / logs） | 只保留最新 300 次（約 10 MB） | 環境變數 `KEEP_RUNS` |
+| Watermark 實驗的 Kafka topic、checkpoint | 實驗結束就刪除（每次用新的 `watermark_demo_<時間>`） | `jobs/adv_watermark.py` |
+| Delta 表（`work/delta/`） | 每次執行先刪掉同倍數的舊表再重建，每個倍數只留一份（×30 約 1.8 GB） | `jobs/adv_delta.py` |
+| Delta jar 快取（`work/ivy/`） | 固定約 175 MB，下載一次之後重複使用 | `portal/app.py` 的 `--packages` |
 | producer log | 每分鐘印一行 | `jobs/stream_producers.py` |
 
 **唯一會一直變大的是放大資料**（`<repo>/work/bigdata/`，×30 約 6.7 GB CSV + 1.8 GB Parquet），只有在控制台按「資料放大」時才會增加，不用時在控制台刪除即可。
@@ -212,6 +215,9 @@ spark-worker 容器**沒有**掛 GPU，一般的 cluster job 還是純 CPU。
 | 用 MySQL + Tableau 的部分改成 Parquet + 控制台圖表 | 少一個資料庫要維護；Tableau 需要授權。輸出表格存在 `/work/ec_web_logs_analysis/tables/`，名稱和原本的 MySQL 表相同。 |
 | 擴展性測試加上 Parquet（`power_to_parquet.py`、`power_query.py --format parquet`） | 對應課程的 Big Data File Formats 單元：同一份資料、同一個查詢，只換檔案格式，直接比較耗時和檔案大小。 |
 | GPU job 用 portal 容器的 local mode，不改 worker | 只有一顆 GPU，RAPIDS 建議一個 executor 對一顆 GPU。兩個 worker 共用同一顆 GPU 需要額外的 GPU 資源排程，收益不大。在同一個 session 裡切換 `spark.rapids.sql.enabled` 做 CPU / GPU 對照，最公平。 |
+| Delta Lake 用 `--packages` 在執行時載入，不打包進映像檔 | 只有「Delta Lake」這個 job 需要。打包進 `$SPARK_HOME/jars` 會讓每個 job 都載入 Delta，還可能和 RAPIDS 的 Delta 支援互相干擾；`spark_catalog` 換成 DeltaCatalog 也只套用在這個 job。jar 存在 `/work/ivy`，第一次執行下載後就不用再抓。 |
+| 選 Delta Lake 而不是 Iceberg | 兩者都有支援 Spark 4.1 的正式版本（Delta 4.4.1 `delta-spark_4.1_2.13`、Iceberg 1.12.0）。Delta 不需要另外設定 catalog，直接用路徑就能 MERGE / 時間旅行，最適合當入門示範。觀念（交易紀錄、snapshot、檔案層級統計）兩者相通。 |
+| Watermark 做成一次性的實驗，不是常駐 stream | 自己產生事件，才知道「真實答案」，能算出完整度和結果延遲。同一個 topic 給多個查詢同時讀、只差 watermark，比較才公平。 |
 | quadkey 改用 `mercantile` 計算 | 原本的 `lib_quadkey.zip` 遺失了；mercantile 用的是同一套 Bing Maps tile 規則，算出的 quadkey 一樣。 |
 
 ## 6. GPU（RAPIDS Accelerator for Apache Spark）評估（2026-11-14）
@@ -269,6 +275,12 @@ spark-worker 容器**沒有**掛 GPU，一般的 cluster job 還是純 CPU。
 | 想在同一台主機測試 bootstrap，會和正在運作的服務衝突 | 用 `COMPOSE_PROJECT_NAME=<其他名稱>` 另起一組容器，`.env` 的 `LAB_PORT` 換成其他連接埠。測試會重新 build 並覆蓋 `spark-lab:4.1.2` 這個名稱，結束後用 `docker tag <原本的 ID> spark-lab:4.1.2` 改回原本的映像檔。 |
 | `docker ps --size` 顯示 Kafka 容器有 1.26 GB | 是 Kafka 預先配置的索引檔（sparse file）造成的表面大小，實際資料只有幾 MB。 |
 | `nvidia-smi` 的 memory.total / used 顯示 `[N/A]` | GB10 是統一記憶體架構，這是正常現象。GPU 使用量要看 `--query-compute-apps` 或 `utilization.gpu`。 |
+| Delta：`OPTIMIZE ... ZORDER BY (timestamp)` 出現 `PARSE_SYNTAX_ERROR at or near 'OPTIMIZE'` | 錯誤訊息很誤導：真正原因是 `timestamp` 是 SQL 關鍵字，Delta 的語法解析失敗後交給 Spark 解析，才報 OPTIMIZE 錯。欄位名加反引號 `` `timestamp` `` 就好。 |
+| Delta：OPTIMIZE ZORDER 之後 data skipping 沒效果 | OPTIMIZE 預設把檔案合併成約 1 GB，1.8 GB 的表只剩 2 個檔，跳不掉多少。示範時把 `spark.databricks.delta.optimize.maxFileSize` 設成 32 MB（約 56 個檔）。實際環境的檔案大小要依查詢模式決定。 |
+| Watermark：Spark 回報的「丟棄列數」遠小於實際少算的事件 | `numRowsDroppedByWatermark` 算的是 state 運算子前、已經部分聚合過的列，不是原始事件數。要知道丟了多少事件，得像這個實驗一樣和真實筆數比對。 |
+| Watermark：一開始的遲到事件都被收進來 | 第一個 micro-batch 還沒有 watermark（沒有下限），實驗剛開始那幾秒的遲到事件全部會被計入。比較時只算實驗開始後的完整視窗。 |
+| Watermark：最後幾個視窗一直沒有輸出 | append 模式要等 watermark 超過視窗結束時間才輸出，而 watermark 只會被新事件推進。資料停了，最後的視窗就卡住。實驗最後送一筆未來 1 小時的事件把 watermark 推過去（它自己的視窗不列入比較）。 |
+| Delta：VACUUM 之後 `versionAsOf 0` 的 `count()` 還是成功，以為舊版本還在 | Delta 用 log 裡每個檔的 `numRecords` 直接回答 `count()`，不開資料檔。真的讀資料（例如 `sum(length(device_id))`）才會出現 `FAILED_READ_FILE.FILE_NOT_EXIST`。驗證資料還在不在，不能只用 count。 |
 | Python UDF 裡的模組 | executor 和 driver 用同一個映像檔，`/opt/lab/jobs` 在 PYTHONPATH 裡；`project_etl` 另外用 `addPyFile` 示範原本的 `--py-files` 用法。 |
 
 ## 8. 實測數據（2026-11-14，×30 = 3,830 萬筆）
@@ -305,3 +317,62 @@ spark-worker 容器**沒有**掛 GPU，一般的 cluster job 還是純 CPU。
 原始資料有好幾個檔案從 4 MB 或 8 MB 的位置開始被 0x00 覆蓋（推測是當年複製中斷）：從同目錄完好的 zip 還原、
 從損毀的 zip 直接解 zlib 串流救回 1,397,618 / 1,600,000 筆推文、截掉 0x00 尾段保留完整的行。
 課程程式原本不在備份裡，是依上課紀錄重建並移植到 Spark 4。
+
+## 10. 進階主題（2026-11-16）
+
+課程之後最值得深究的兩個方向，各做成一個可以直接執行的實驗，在控制台左邊的「進階主題」。
+
+### Watermark 與遲到資料（`jobs/adv_watermark.py`）
+
+1. job 自己當 producer，對一個新的 Kafka topic（3 個 partition）送 `duration` 秒的事件。每筆事件帶自己的事件時間；
+   `late_pct`% 的事件故意遲到，分成 3–8 s、10–25 s、30–50 s 三組。
+2. 同一個 topic 同時給多個串流查詢讀，**只差在 watermark**（預設 0 / 10 / 60 秒），都用 10 秒的事件時間視窗計數，append 模式輸出。
+3. producer 知道自己送了什麼，所以能和每個查詢的輸出逐視窗比對。
+
+實測（60 秒 × 200 筆/秒，遲到 30%）：
+
+| watermark | 完整度 | 平均結果延遲 | state 最多列數 | 3–8 s 遲到 | 10–25 s 遲到 | 30–50 s 遲到 |
+|---|---|---|---|---|---|---|
+| 0 s | 88.5% | 3.5 s | 8 | 87% | 6% | 0% |
+| 10 s | 94.4% | 10.7 s | 8 | 100% | 67% | 0% |
+| 60 s | 100% | 23.4 s | 26 | 100% | 100% | 100% |
+
+取捨很清楚：watermark 越長收得越完整，但每個視窗要多等這麼久才有結果，state 也要同時保留更多視窗。
+實務上要依「資料最晚會晚多久」和「結果能等多久」決定，例如報表可以等，告警不能等。
+
+```bash
+# 預設參數執行（約 1.5 分鐘）
+curl -s -u "$LAB_USER:$LAB_PASSWORD" -H 'Content-Type: application/json' -d '{}' localhost:8100/api/run/watermark
+# 執行中看 topic（結束後會被刪掉）
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list | grep watermark
+```
+
+### Delta Lake（`jobs/adv_delta.py`）
+
+| 步驟 | 示範什麼 |
+|---|---|
+| ① Parquet → Delta | Delta = Parquet 資料檔 + `_delta_log/*.json` 交易紀錄。每個資料檔在 log 裡有筆數和每欄 min / max |
+| ② 建 devices 表 | 每台裝置一列，當作要被更新的維度表 |
+| ③ MERGE | 一個 commit 同時更新 5% 的裝置、新增 500 台、刪除 100 台（「被遺忘權」） |
+| ④ UPDATE 忘了 WHERE | 故意把所有 gender 改成 NULL |
+| ⑤ 時間旅行 + RESTORE | 用 `versionAsOf` 讀每個版本，確認錯誤，再 `RESTORE TABLE ... TO VERSION AS OF 1` 救回 |
+| ⑥ OPTIMIZE ZORDER | 依 timestamp 重排；比較查一天的資料要開幾個檔 |
+| ⑦ VACUUM | 刪掉舊檔省空間；之後就不能時間旅行回那些版本（示範用 `RETAIN 0 HOURS`，預設保留 7 天） |
+
+實測（×30 = 3,830 萬筆，16 核，約 5.5 分鐘；用的是原始課程資料，這個 repo 附的模擬資料裝置數不同，MERGE、UPDATE 的筆數會不一樣）：
+
+- 寫成 Delta：18 個檔、1.78 GB，交易紀錄只有 26 KB。
+- MERGE：更新 1,539、新增 500、刪除 100；devices 表的 16 個檔被改寫成 1 個（copy-on-write）。
+- 查 2019-05-18 一天：寫入後 18 個檔（1.78 GB）都得開，因為每個檔都混了整個月的資料；OPTIMIZE ZORDER 後 56 個檔只要開 2 個（0.035 GB）。
+- OPTIMIZE 後磁碟上暫時有新舊兩份（2.96 GB），VACUUM 後剩 1.18 GB，比原本的 1.78 GB 還小：依時間排序後，相近的值放在一起，壓縮效果更好。
+
+驗證 Delta 版本和 jar：
+
+```bash
+ls <repo>/work/ivy/jars | grep delta          # io.delta_delta-spark_4.1_2.13-4.4.1.jar、io.delta_delta-storage-4.4.1.jar …
+ls <repo>/work/delta/weblogs_x30/_delta_log    # …00.json（寫入）、…01.json（OPTIMIZE）、…02/03.json（VACUUM START / END）
+```
+
+版本相容：Delta 從 4.x 起依 Spark 版本分開發佈（`delta-spark_4.0_2.13`、`delta-spark_4.1_2.13`、`delta-spark_4.2_2.13`）。
+升級 Spark 時，`portal/catalog.py` 的 `DELTA_PKG` 要換成對應的 artifact。Delta 是純 JVM，沒有 aarch64 / GPU 相容問題。
+

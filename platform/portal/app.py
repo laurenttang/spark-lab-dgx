@@ -62,8 +62,11 @@ def _spark_submit(run):
                "--name", f"{job['title']}",
                "--driver-memory", os.environ.get("DRIVER_MEMORY", "4g"),
                "--conf", "spark.driver.host=portal",
-               "--conf", f"spark.cores.max={run['cores']}",
-               str(JOBS_DIR / job["file"])]
+               "--conf", f"spark.cores.max={run['cores']}"]
+        if job.get("packages"):                 # e.g. Delta Lake: resolved once, cached on the work disk
+            cmd += ["--packages", job["packages"], "--conf", "spark.jars.ivy=/work/ivy"]
+        cmd += [a for k, v in job.get("conf", {}).items() for a in ("--conf", f"{k}={v}")]
+        cmd.append(str(JOBS_DIR / job["file"]))
     for k, v in run["params"].items():
         if v not in ("", None):
             cmd += [f"--{k}", str(v)]
@@ -138,7 +141,7 @@ def index():
 @app.get("/api/catalog")
 def catalog():
     return {"sections": [dict(id=s, title=t, desc=d) for s, t, d in SECTIONS],
-            "jobs": {k: {kk: vv for kk, vv in v.items() if kk != "file"} for k, v in JOBS.items()},
+            "jobs": {k: {kk: vv for kk, vv in v.items() if kk not in ("file", "packages", "conf")} for k, v in JOBS.items()},
             "streams": {k: dict(title=v["title"]) for k, v in STREAM_DEFS.items()}}
 
 

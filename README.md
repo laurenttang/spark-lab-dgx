@@ -32,6 +32,7 @@ flowchart LR
 | **Final project** | Quadkey (Bing tile) region lookup with a prefix tree, ETL to Parquet, gender / age-group models, per-device location clustering with `applyInPandas`, dashboard |
 | **Streaming** | Kafka → Structured Streaming: per-visitor sliding windows (60 s / 5 s) written back to Kafka; live tweet-sentiment ranking (300 s / 20 s) |
 | **Power of Spark** | data amplification (×N, tens of GB), core-scaling benchmark, CSV vs Parquet, single-node pandas baseline, **CPU vs GPU with RAPIDS** |
+| **Advanced** | watermark vs late data (one Kafka topic, several queries that differ only in watermark, checked against the truth); Delta Lake 4.4 — MERGE, time travel + RESTORE, OPTIMIZE ZORDER data skipping, VACUUM |
 
 ## Results (DGX Spark, ×30 = 38.3 M rows)
 

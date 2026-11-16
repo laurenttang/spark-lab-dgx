@@ -7,7 +7,12 @@ SECTIONS = [
     ("project", "期末專題：電商 Web Logs", "0818–0820：Quadkey ETL → 模型 → 儀表板"),
     ("streaming", "即時串流", "0802–0805：Kafka + Spark Streaming"),
     ("power", "Spark 的威力", "資料放大 + 平行運算擴展性測試"),
+    ("advanced", "進階主題", "課程之後值得深究的：串流的事件時間、Lakehouse 表格格式"),
 ]
+
+DELTA_PKG = "io.delta:delta-spark_4.1_2.13:4.4.1"      # Delta Lake build for Spark 4.1 (pure JVM, any arch)
+DELTA_CONF = {"spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
+              "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog"}
 
 FMT = dict(name="format", label="檔案格式", default="csv", type="select", choices=["csv", "parquet"])
 
@@ -65,4 +70,19 @@ JOBS = {
                 params=[dict(name="factor", label="資料倍數", default=30, type="number"),
                         dict(name="formats", label="格式", default="parquet,csv", type="select",
                              choices=["parquet,csv", "parquet", "csv"])]),
+    "watermark": dict(section="advanced", file="adv_watermark.py", title="Watermark 與遲到資料（Kafka）",
+                      desc="同一個 Kafka topic 同時給 3 個串流查詢讀，只差在 watermark（0 / 10 / 60 秒）。故意送出遲到 3–50 秒的事件，"
+                           "和真實筆數比對：誰收得完整、誰的結果出得快、誰的 state 比較大。",
+                      params=[dict(name="duration", label="送幾秒的事件", default=60, type="number"),
+                              dict(name="rate", label="每秒筆數", default=200, type="number"),
+                              dict(name="late_pct", label="遲到比例 %", default=30, type="number"),
+                              dict(name="watermarks", label="watermark 秒數（逗號分隔，最多 4 個）", default="0,10,60",
+                                   type="text")]),
+    "delta": dict(section="advanced", file="adv_delta.py", title="Delta Lake：MERGE、時間旅行、Data skipping",
+                  desc="把放大後的 Parquet 轉成 Delta 表，看 _delta_log 裡記了什麼；MERGE 一次更新 / 新增 / 刪除；"
+                       "故意 UPDATE 忘了 WHERE，再用時間旅行和 RESTORE 救回來；OPTIMIZE ZORDER 前後比較要讀幾個檔；最後 VACUUM。",
+                  packages=DELTA_PKG, conf=DELTA_CONF,
+                  params=[dict(name="factor", label="資料倍數", default=30, type="number"),
+                          dict(name="optimize", label="跑 OPTIMIZE ZORDER", default="yes", type="select",
+                               choices=["yes", "no"])]),
 }
